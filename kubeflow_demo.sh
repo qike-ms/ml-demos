@@ -6,6 +6,8 @@
 # Create or obtain an Azure subscription
 # Create a resource group in the subscription in a region
 
+alias k='kubectl'
+
 SUB=<Azure sbuscription name or id>
 REGION=<region, e.g. eastus>
 RG=<resource group, e.g. aks-eastus>
@@ -14,6 +16,10 @@ NODEPOOL=<node pool name, e.g. pool2>
 SP=<service principal client-id, e.g. a1d6ea22-ed13-1111-9999-a121999a3aaa>
 SECRETE=<service principal secret>
 ACR=<Azure container registry name, e.g. ml-demo>
+
+
+# -------------------  To find SP and tenant id  -----------
+az ad sp list --show-mine --query "[].{id:appId, tenant:appOwnerTenantId}"
 
 # -------------------  Create Resource Group  --------------  
 az login
@@ -26,6 +32,10 @@ az acr create --subscription "$SUB" --name "$ACR" -g "$RG" -l "$REGION"  --sku S
 ACR_REGISTRY_ID=$(az acr show --name "$ACR" --query id --output tsv)
 az role assignment create --assignee $SP --scope $ACR_REGISTRY_ID --role acrpull
 az acr login -n $ACR
+
+# -----------   Get supported K8S versions and vm sizes -----------------
+az aks get-versions -l $REGION | jq '.orchestrators | .[].orchestratorVersion' | sort
+az vm list-sizes -l "$REGION" -o table
 
 # ----------------------  Create AKS Cluster  ------------------------
 
@@ -67,12 +77,18 @@ kubectl config set-context $(kubectl config current-context) --namespace=kubeflo
 
 # See dashboard
 kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
+
+# --------- Edit a Jupyter Notebook   -------------
 # Then on the dashboard, create a new notebook server
 # Connect to the notebook server and start a new notebook
 # Each notebook server is a pod and each notebook is a python process in the pod.
 
-# --------- Edit a Jupyter Notebook   -------------
-k -n kubeflow-anonymous exec -it pod/test1-0 -- /bin/sh
+# Find the pod deployed for the notebook server:
+k get pod -n kubeflow-anonymous
+
+# Check the processes for the notebooks inside the notebook server, suppose test1 is the notebook server name.
+NOTEBOOKSERVER="test1"
+k -n kubeflow-anonymous exec -it pod/${NOTEBOOKSERVER}-0 -- /bin/sh
 
 
 # --------- MNIST on Kubeflow example -------------
